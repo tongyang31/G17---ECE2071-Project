@@ -1,97 +1,63 @@
 #include <stdio.h>
+#include <ctype.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdint.h>
-
-#define SAMPLE_RATE 10000         // 10kSPS (matches Python)
-#define NUM_CHANNELS 1  
-#define BITS_PER_SAMPLE 8         // 8-bit audio
+#define SAMPLE_RATE 10000
+#define NUM_CHANNELS 1
+#define BITS_PER_SAMPLE 16
+#define NUM_SAMPLES 25000  // 50000 bytes / 2 bytes per sample
 
 void write_little_endian_32(uint32_t value, FILE *file) {
-    uint8_t bytes[4] = {
-        value & 0xFF,
-        (value >> 8) & 0xFF,
-        (value >> 16) & 0xFF,
-        (value >> 24) & 0xFF
-    };
+    uint8_t bytes[4];
+    bytes[0] = value & 0xFF;
+    bytes[1] = (value >> 8) & 0xFF;
+    bytes[2] = (value >> 16) & 0xFF;
+    bytes[3] = (value >> 24) & 0xFF;
     fwrite(bytes, 1, 4, file);
 }
 
 void write_little_endian_16(uint16_t value, FILE *file) {
-    uint8_t bytes[2] = {
-        value & 0xFF,
-        (value >> 8) & 0xFF
-    };
+    uint8_t bytes[2];
+    bytes[0] = value & 0xFF;
+    bytes[1] = (value >> 8) & 0xFF;
     fwrite(bytes, 1, 2, file);
 }
 
-int main() {
-    FILE *file = fopen("raw_ADC_values.data", "rb");
-    if (!file) {
-        printf("Error: Could not open raw_ADC_values.data\n");
-        return 1;
-    }
+int main(){
+    int data_size = NUM_SAMPLES;
+    FILE *file = fopen("raw_ADC_values.data","rb"); // "rb" = read binary
+    if (file != NULL){  //check file presence
+        FILE *wav = fopen("output.wav","wb");
+        fwrite("RIFF", 1, 4, wav);
+        write_little_endian_32(44 + data_size, wav);     // ChunkSize
+        fwrite("WAVE", 1, 4, wav);
+        fwrite("fmt ", 1, 4, wav);                       // Subchunk1 ID
+        write_little_endian_32(16, wav);                // Subchunk1 Size
+        write_little_endian_16(1, wav);                 // Audio format (1 = PCM)
+        write_little_endian_16(1, wav);                 // NumChannels
+        write_little_endian_32(SAMPLE_RATE, wav);       // SampleRate
+        write_little_endian_32(SAMPLE_RATE * BITS_PER_SAMPLE*1/8, wav);   // ByteRate
+        write_little_endian_16(2, wav);                 // BlockAlign   
+        write_little_endian_16(BITS_PER_SAMPLE, wav);   // BitsPerSample
+        fwrite("data", 1, 4, wav);                      // Subchunk2 ID
+        write_little_endian_32(data_size, wav);         // Subchunk2 Size
+        
+        // a byte is still 8 bits here, its just that only the lower 12 bits contain information
+        uint16_t ADC_value; //each ADC value is a 12-bit value, stored in 2 bytes (uint16_t)
+        while(fread(&ADC_value,sizeof(uint16_t),1,file) == 1){ //this reads 2 bytes at a time
+            //convert ADC value (0-4095) to range of -32768 and +32767
+            // 0 should be -32768
+            int16_t scaled_value = (int16_t)((((double)ADC_value/4095.0)*(32767.0+32768.0))-32768.0);
+            write_little_endian_16(scaled_value, wav);
 
-    // Check if input file is empty
-    fseek(file, 0, SEEK_END);
-    long file_size = ftell(file);
-    rewind(file);
-
-    if (file_size == 0) {
-        printf("Error: raw_ADC_values.data is empty!\n");
+        }
         fclose(file);
-        return 1;
+        fclose(wav);
+        return 0;
     }
-
-    FILE *wav = fopen("output.wav", "wb");  // Use "wb" instead of "wb+"
-    if (!wav) {
-        printf("Error: Could not create output.wav\n");
-        fclose(file);
-        return 1;
+    else{
+        printf("Error in opening input file \n");
     }
-
-    // --- Write WAV Header ---
-    fwrite("RIFF", 1, 4, wav);                             // ChunkID
-    write_little_endian_32(0, wav);                        // Placeholder (ChunkSize)
-    fwrite("WAVE", 1, 4, wav);                             // Format
-
-    fwrite("fmt ", 1, 4, wav);                             // Subchunk1 ID
-    write_little_endian_32(16, wav);                       // Subchunk1 Size (16 for PCM)
-    write_little_endian_16(1, wav);                        // AudioFormat (1 = PCM)
-    write_little_endian_16(NUM_CHANNELS, wav);             // NumChannels
-    write_little_endian_32(SAMPLE_RATE, wav);              // SampleRate
-    write_little_endian_32(SAMPLE_RATE * NUM_CHANNELS * BITS_PER_SAMPLE / 8, wav); // ByteRate
-    write_little_endian_16(NUM_CHANNELS * BITS_PER_SAMPLE / 8, wav); // BlockAlign
-    write_little_endian_16(BITS_PER_SAMPLE, wav);          // BitsPerSample
-
-    fwrite("data", 1, 4, wav);                             // Subchunk2 ID
-    write_little_endian_32(0, wav);                        // Placeholder (Subchunk2 Size)
-
-    // --- Copy Samples ---
-    uint8_t sample;
-    int sample_count = 0;
-    while (fread(&sample, 1, 1, file) == 1) {
-        fwrite(&sample, 1, 1, wav);
-        sample_count++;
-    }
-
-    // --- Update Header with Correct Sizes ---
-    uint32_t data_chunk_size = sample_count;  // 1 byte per sample
-    uint32_t riff_chunk_size = 36 + data_chunk_size;  // 36 = header size
-
-    fseek(wav, 4, SEEK_SET);
-    write_little_endian_32(riff_chunk_size, wav);  // Update RIFF chunk size
-
-    fseek(wav, 40, SEEK_SET);
-    write_little_endian_32(data_chunk_size, wav);  // Update data chunk size
-
-    fclose(file);
-    fclose(wav);
-
-    if (sample_count == 0) {
-        printf("Warning: WAV file created but contains 0 samples!\n");
-    } else {
-        printf("Success: WAV file created with %d samples (8-bit, %d Hz)\n", sample_count, SAMPLE_RATE);
-    }
-
-    return 0;
 }
+
