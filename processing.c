@@ -43,10 +43,6 @@
 /* Private variables ---------------------------------------------------------*/
 SPI_HandleTypeDef hspi1;
 
-TIM_HandleTypeDef htim1;
-TIM_HandleTypeDef htim6;
-TIM_HandleTypeDef htim7;
-
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
@@ -56,18 +52,15 @@ uint16_t ADC_filter_buffer[3] = {0}; //store moving avg value
 char string_1[40] = "\0";
 uint8_t buffer_index = 0;
 uint8_t initialized = 0;
-int flag = 0;
-float distance = 0;
-uint16_t count_1 = 0;
-uint16_t count_2 = 0;
-int min_distance = 10;
-uint8_t uart_buffer[1]={0};
-uint8_t distance_mode = 0;  // 1 = ON, 0 = OFF
-uint8_t recording_enabled = 1;
-uint16_t sample_count = 0;
-int k = 2; // used to adjust the sensitivity of outlier detection
-
-
+static uint8_t sample_counter = 0;
+int k = 2; 		// used to adjust the sensitivity of outlier detection
+//int flag = 0;
+//float distance = 0;
+//uint16_t count_1 = 0;
+//uint16_t count_2 = 0;
+//int min_distance = 10;
+//uint8_t uart_buffer[9];
+//uint8_t recording_enabled = 1;  // 1 = ON, 0 = OFF
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -75,9 +68,6 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_SPI1_Init(void);
-static void MX_TIM1_Init(void);
-static void MX_TIM6_Init(void);
-static void MX_TIM7_Init(void);
 /* USER CODE BEGIN PFP */
 void delay_uS(uint16_t delay);
 void HCSR04_Read();
@@ -120,15 +110,12 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   MX_SPI1_Init();
-  MX_TIM1_Init();
-  MX_TIM6_Init();
-  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
   HAL_SPI_Receive_IT(&hspi1,RX_Buffer,2);
-  HAL_TIM_Base_Start(&htim6);		// Timer to count to 10 microseconds
-  HAL_TIM_Base_Start_IT(&htim7);  //Timer to trigger ultrasonic, always put base start above
-  HAL_TIM_IC_Start_IT(&htim1,TIM_CHANNEL_1);		// Timer to measure distance
-  HAL_UART_Receive_IT(&huart2,(uint8_t*)uart_buffer,1);  // Receive 1 byte at a time
+//  HAL_TIM_Base_Start(&htim6);		// Timer to count to 10 microseconds
+//  HAL_TIM_Base_Start_IT(&htim7);  //Timer to trigger ultrasonic, always put base start above
+//  HAL_TIM_IC_Start_IT(&htim1,TIM_CHANNEL_1);		// Timer to measure distance
+//  HAL_UART_Receive_IT(&huart2,(uint8_t*)uart_buffer,9);  // Receive 1 byte at a time
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -171,7 +158,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = 0;
-  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_7;
+  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
   RCC_OscInitStruct.PLL.PLLM = 1;
@@ -193,7 +180,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -239,142 +226,6 @@ static void MX_SPI1_Init(void)
   /* USER CODE BEGIN SPI1_Init 2 */
 
   /* USER CODE END SPI1_Init 2 */
-
-}
-
-/**
-  * @brief TIM1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM1_Init(void)
-{
-
-  /* USER CODE BEGIN TIM1_Init 0 */
-
-  /* USER CODE END TIM1_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_IC_InitTypeDef sConfigIC = {0};
-
-  /* USER CODE BEGIN TIM1_Init 1 */
-
-  /* USER CODE END TIM1_Init 1 */
-  htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 32-1;
-  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 65535;
-  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim1.Init.RepetitionCounter = 0;
-  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_IC_Init(&htim1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterOutputTrigger2 = TIM_TRGO2_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_BOTHEDGE;
-  sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
-  sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
-  sConfigIC.ICFilter = 0;
-  if (HAL_TIM_IC_ConfigChannel(&htim1, &sConfigIC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM1_Init 2 */
-
-  /* USER CODE END TIM1_Init 2 */
-
-}
-
-/**
-  * @brief TIM6 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM6_Init(void)
-{
-
-  /* USER CODE BEGIN TIM6_Init 0 */
-
-  /* USER CODE END TIM6_Init 0 */
-
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM6_Init 1 */
-
-  /* USER CODE END TIM6_Init 1 */
-  htim6.Instance = TIM6;
-  htim6.Init.Prescaler = 32-1;
-  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim6.Init.Period = 65535;
-  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM6_Init 2 */
-
-  /* USER CODE END TIM6_Init 2 */
-
-}
-
-/**
-  * @brief TIM7 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM7_Init(void)
-{
-
-  /* USER CODE BEGIN TIM7_Init 0 */
-
-  /* USER CODE END TIM7_Init 0 */
-
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM7_Init 1 */
-
-  /* USER CODE END TIM7_Init 1 */
-  htim7.Instance = TIM7;
-  htim7.Init.Prescaler = 100-1;
-  htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim7.Init.Period = 50-1;
-  htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim7, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM7_Init 2 */
-
-  /* USER CODE END TIM7_Init 2 */
 
 }
 
@@ -431,17 +282,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin : PA6 */
-  GPIO_InitStruct.Pin = GPIO_PIN_6;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LD3_Pin */
   GPIO_InitStruct.Pin = LD3_Pin;
@@ -457,124 +298,149 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef * hspi) {
-    if (hspi == &hspi1) {
-        // Convert 2 bytes to 12-bit ADC value
-        uint16_t new_value = RX_Buffer[0] | (RX_Buffer[1] << 8);
-
-        // Store the value in the circular buffer
-        ADC_filter_buffer[buffer_index] = new_value;
-        buffer_index = (buffer_index + 1) % 3;
-
-        if (initialized < 3) {
-            initialized++;
-        }
-
-        uint16_t filtered_value;
-
-        if (initialized < 3) {
-            // Not enough samples yet, average whatever is available
-            int sum = 0;
-            for (int i = 0; i < initialized; i++) {
-                sum += ADC_filter_buffer[i];
-            }
-            filtered_value = sum / initialized;
-        } else {
-            // Outlier removal using min-max exclusion (only valid when we have 3 samples)
-            uint16_t a = ADC_filter_buffer[0];
-            uint16_t b = ADC_filter_buffer[1];
-            uint16_t c = ADC_filter_buffer[2];
-            // Return the median of the three (the one that is not min or max)
-            if ((a >= b && a <= c) || (a <= b && a >= c))
-                filtered_value = a;
-            else if ((b >= a && b <= c) || (b <= a && b >= c))
-                filtered_value = b;
-            else
-                filtered_value = c;
-        }
-
-        sample_count++;
-        if (recording_enabled == 1 && sample_count % 2 == 0) {
-            uint8_t mapped_value = filtered_value >> 4;  // 12-bit to 8-bit
-            HAL_UART_Transmit_IT(&huart2, &mapped_value, 1);
-        }
-
-        HAL_SPI_Receive_IT(&hspi1, RX_Buffer, 2);  // Restart SPI reception
-    }
-}
-
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-    if (huart->Instance == USART2)
-    {
-    	if (uart_buffer[0] == 'M') {
-    	    		distance_mode = 0;
-    	    		recording_enabled = 1;
-    	    		HAL_GPIO_WritePin (GPIOB,GPIO_PIN_3,GPIO_PIN_RESET);
-    	}
-        // distance trigger mode
-    	if (uart_buffer[0] == 'D') {
-    		distance_mode = 1;
-    	}
-    	// Re-enable UART interrupt
-    	HAL_UART_Receive_IT(&huart2, uart_buffer, 1);
-    }
-}
-
-void delay_uS(uint16_t delay)
-{
-	__HAL_TIM_SET_COUNTER(&htim6 , 0);
-	while (__HAL_TIM_GET_COUNTER(&htim6) < delay)
-	{
-
-	}
-}
-
-void HCSR04_Read()
-{
-	HAL_GPIO_WritePin(GPIOA,GPIO_PIN_6, GPIO_PIN_SET);
-	delay_uS(10);
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
-}
-
-void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef * htim)
-{
-	if (htim == &htim7)
-	{
-		  HCSR04_Read();
-	        if (distance_mode){
-	            if (distance > 1 && distance < min_distance){
-	                recording_enabled = 1;
-	                HAL_GPIO_WritePin (GPIOB,GPIO_PIN_3,GPIO_PIN_SET);
-	            } else {
-	                recording_enabled = 0;
-	                HAL_GPIO_WritePin (GPIOB,GPIO_PIN_3,GPIO_PIN_RESET);
-	            }
-	        }
-	    }
-	}
-
-void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
-{
-	if ((htim == &htim1) && (htim->Channel == 1) && (distance_mode == 1))
-	{
-		if (flag == 0)
+void HAL_SPI_RxCpltCallback (SPI_HandleTypeDef * hspi){
+	if (hspi == &hspi1){
+		sample_counter++; // increase number of sample received
+		if (sample_counter % 2 == 0)	// only process every second sample
 		{
-			count_1 = HAL_TIM_ReadCapturedValue(&htim1, TIM_CHANNEL_1);
-			flag = 1;
-		}
-		else
-		{
-			count_2 = HAL_TIM_ReadCapturedValue(&htim1, TIM_CHANNEL_1);
+			//convert 2 bytes back into 12 bit ADC value
+			uint16_t new_value = RX_Buffer[0] |	(RX_Buffer[1]<<8);
+			// getting the current average of the collected  sample(s)
+			int sum = 0;
+			for (int i = 0; i < initialized; i++)
+			{
+				sum += ADC_filter_buffer[i];
+			}
+			uint16_t cur_avg = 0;
+			if (initialized > 0)
+			{
+				cur_avg = sum / initialized;
+			}
+			else
+			{
+				cur_avg = new_value;
+			}
+			// calculate the variance
+			int variance_sum = 0;
+			for (int j = 0; j < initialized; j++)
+			{
+				int difference = ADC_filter_buffer[j] - cur_avg;
+				variance_sum += (difference*difference);
+			}
 
-			__HAL_TIM_SET_COUNTER(htim,0);
-			distance = (count_2-count_1)/58.0;
-			flag = 0;
-		}
+			int variance = 0;
+			if (initialized > 0)
+			{
+				variance = variance_sum/initialized;
+			}
+			else
+			{
+				variance = 0;
+			}
 
+			// defining threshold
+			int threshold = k*k*variance;
+
+			// check whether new_value is outlier
+			int diff = (int) new_value - (int) cur_avg;
+			if (diff*diff > threshold)
+			{
+				new_value = cur_avg;
+			}
+
+			//store the ADC value into a buffer to avg out
+			ADC_filter_buffer[buffer_index] = new_value;
+			//update filter buffer index, % to limit index to 2, will go to 0 after 2
+			buffer_index = (buffer_index+1)%3;
+
+			// this basically ensures that the average filter works smoothly with the first and second inputs
+			if(initialized < 3){
+				initialized ++;
+			}
+
+			sum = 0;
+			for(int i = 0; i<initialized;i++){
+				sum += ADC_filter_buffer[i];
+			}
+
+			uint16_t filtered_value = sum/initialized;
+			uint8_t reduced_8bit = filtered_value >> 4;
+			HAL_UART_Transmit_IT(&huart2, &reduced_8bit,1);
+
+			HAL_SPI_Receive_IT(&hspi1,RX_Buffer,2); //receive through SPI in interrupt
+		}
 	}
 }
-
+//void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+//{
+//    if (huart->Instance == USART2)
+//    {
+//        // Example: toggle recording if 'r' is received
+//    	if (strncmp(uart_buffer, "interrupt", 9) == 0) {
+//    		recording_enabled = 0;
+//    	}
+//    	else if (strncmp(uart_buffer, "resume   ", 9) == 0) {
+//    		recording_enabled = 1;
+//    	}
+//
+//    	        // Re-enable UART interrupt
+//    	HAL_UART_Receive_IT(&huart2, uart_buffer, 9);
+//    }
+//}
+//
+//void delay_uS(uint16_t delay)
+//{
+//	__HAL_TIM_SET_COUNTER(&htim6 , 0);
+//	while (__HAL_TIM_GET_COUNTER(&htim6) < delay)
+//	{
+//
+//	}
+//}
+//
+//void HCSR04_Read()
+//{
+//	HAL_GPIO_WritePin(GPIOA,GPIO_PIN_6, GPIO_PIN_SET);
+//	delay_uS(10);
+//	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
+//}
+//
+//void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef * htim)
+//{
+//	if (htim == &htim7)
+//	{
+//		  HCSR04_Read();
+//	}
+//}
+//
+//void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
+//{
+//	if ((htim == &htim1) && (htim->Channel == 1))
+//	{
+//		if (flag == 0)
+//		{
+//			count_1 = HAL_TIM_ReadCapturedValue(&htim1, TIM_CHANNEL_1);
+//			flag = 1;
+//		}
+//		else
+//		{
+//			count_2 = HAL_TIM_ReadCapturedValue(&htim1, TIM_CHANNEL_1);
+//
+//			__HAL_TIM_SET_COUNTER(htim,0);
+//			distance = (count_2-count_1)/58.0;
+//			flag = 0;
+//			if(distance > 0){
+//				HAL_UART_Transmit(&huart2, (uint8_t*)string_1, strlen(string_1),10);
+//				if (distance <= min_distance && recording_enabled==1){
+//					HAL_GPIO_WritePin (GPIOB,GPIO_PIN_3,GPIO_PIN_SET);
+//				}
+//				else{
+//					HAL_GPIO_WritePin (GPIOB,GPIO_PIN_3,GPIO_PIN_RESET);
+//				}
+//			}
+//
+//		}
+//	}
+//}
 /* USER CODE END 4 */
 
 /**
@@ -585,6 +451,7 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
+  __disable_irq();
   while (1)
   {
   }
