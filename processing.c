@@ -457,7 +457,8 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef * hspi) {
+void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef * hspi) 
+{   // Take in the values transmitted from Sampling STM
     if (hspi == &hspi1) {
         // Convert 2 bytes to 12-bit ADC value
         uint16_t new_value = RX_Buffer[0] | (RX_Buffer[1] << 8);
@@ -466,7 +467,8 @@ void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef * hspi) {
         ADC_filter_buffer[buffer_index] = new_value;
         buffer_index = (buffer_index + 1) % 3;
 
-        if (initialized < 3) {
+        if (initialized < 3) 
+        {
             initialized++;
         }
 
@@ -504,7 +506,7 @@ void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef * hspi) {
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
+{   // Reeive user input from Terminal, then determine the mode of the Processing STM
     if (huart->Instance == USART2)
     {
     	if (uart_buffer[0] == 'M') {
@@ -531,14 +533,14 @@ void delay_uS(uint16_t delay)
 }
 
 void HCSR04_Read()
-{
+{// for the ultrasonic sensor
 	HAL_GPIO_WritePin(GPIOA,GPIO_PIN_6, GPIO_PIN_SET);
 	delay_uS(10);
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
 }
 
 void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef * htim)
-{
+{ // tim7 is used to constantly activate and measure the distance of the ultrasonic sensor
 	if (htim == &htim7)
 	{
 		  HCSR04_Read();

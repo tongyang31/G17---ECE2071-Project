@@ -361,15 +361,17 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef* htim){
-	if (htim == &htim7){//If the callback was executed for ADC timer TIM7
+	if (htim == &htim7)
+  { //If the callback was executed for ADC timer TIM7
 		HAL_ADC_Start(&hadc1); //start ADC
 		HAL_ADC_PollForConversion(&hadc1,10); //Wait for conversion
 		raw_ADC_value = HAL_ADC_GetValue(&hadc1); //get the unsigned 12-bit ADC data
-		temp = raw_ADC_value & 0xFF;
-		raw_ADC_value_1[0] = temp;
+		temp = raw_ADC_value & 0xFF;              // FF = 1111, 1111 in binary and using & it essentially copies
+		raw_ADC_value_1[0] = temp;                // Save the least significant 8 bits first
+
 		//Extract most significant 8 bits of ADC data
-		temp = raw_ADC_value >> 8;
-		raw_ADC_value_1[1] = temp;
+		temp = raw_ADC_value >> 8;               // Shift left by 8 bits to get the most left 8 bits
+		raw_ADC_value_1[1] = temp;               // Save the most significant 8 bits
 		//transmit 16 bit ADC data through SPI
 		HAL_SPI_Transmit(&hspi1,raw_ADC_value_1,2,10);
 		HAL_ADC_Stop(&hadc1); // stop ADC
