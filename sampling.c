@@ -364,14 +364,12 @@ void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef* htim){
 	if (htim == &htim7){//If the callback was executed for ADC timer TIM7
 		HAL_ADC_Start(&hadc1); //start ADC
 		HAL_ADC_PollForConversion(&hadc1,10); //Wait for conversion
-		raw_ADC_value = HAL_ADC_GetValue(&hadc1); //get the unsigned 12-bit ADC data
-		temp = raw_ADC_value & 0xFF;
-		raw_ADC_value_1[0] = temp;
-		//Extract most significant 8 bits of ADC data
-		temp = raw_ADC_value >> 8;
-		raw_ADC_value_1[1] = temp;
-		//transmit 16 bit ADC data through SPI
-		HAL_SPI_Transmit(&hspi1,raw_ADC_value_1,2,10);
+		raw_ADC_value = HAL_ADC_GetValue(&hadc1); //get the unsigned 16-bit ADC data (rmb to change in the settings)
+		temp = raw_ADC_value & 0xFF; // get the last 8 bits and stores them in temp
+		raw_ADC_value_1[0] = temp; // set it as first byte
+		temp = raw_ADC_value >> 8; // right shifting to get the next 8 bits
+		raw_ADC_value_1[1] = temp; // set it as second byte
+		HAL_SPI_Transmit(&hspi1,raw_ADC_value_1,2,10); 	//transmit 16 bit ADC data through SPI
 		HAL_ADC_Stop(&hadc1); // stop ADC
 	}
 }
