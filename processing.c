@@ -464,15 +464,15 @@ void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef * hspi) {
 
         // Store the value in the circular buffer
         ADC_filter_buffer[buffer_index] = new_value;
-        buffer_index = (buffer_index + 1) % 3;
+        buffer_index = (buffer_index + 1) % 5;
 
-        if (initialized < 3) {
+        if (initialized < 5) {
             initialized++;
         }
 
         uint16_t filtered_value;
 
-        if (initialized < 3) {
+        if (initialized < 5) {
             // Not enough samples yet, average whatever is available
             int sum = 0;
             for (int i = 0; i < initialized; i++) {
@@ -480,22 +480,27 @@ void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef * hspi) {
             }
             filtered_value = sum / initialized;
         } else {
-            // Outlier removal using min-max exclusion (only valid when we have 3 samples)
-            uint16_t a = ADC_filter_buffer[0];
-            uint16_t b = ADC_filter_buffer[1];
-            uint16_t c = ADC_filter_buffer[2];
+            // Outlier removal using min-max exclusion (only valid when we have 5 samples)
             // Return the median of the three (the one that is not min or max)
-            if ((a >= b && a <= c) || (a <= b && a >= c))
-                filtered_value = a;
-            else if ((b >= a && b <= c) || (b <= a && b >= c))
-                filtered_value = b;
-            else
-                filtered_value = c;
+           uint16_t arr[5] = {ADC_filter_buffer[0], ADC_filter_buffer[1], ADC_filter_buffer[2], ADC_filter_buffer[3], ADC_filter_buffer[4]};
+
+            // Simple bubble sort for 5 elements
+            for (int i = 0; i < 4; i++) {
+              for (int j = i + 1; j < 5; j++) {
+                  if (arr[i] > arr[j]) {
+                      uint16_t temp = arr[i];
+                      arr[i] = arr[j];
+                      arr[j] = temp;
+                  }
+              }
+            }
+          uint16_t median = arr[2]; // 3rd element is the median
+          filtered_value = (filtered_value + median) / 2
         }
 
         sample_count++;
         if (recording_enabled == 1 && sample_count % 2 == 0) {
-            uint8_t mapped_value = filtered_value >> 4;  // 12-bit to 8-bit
+            uint8_t mapped_value = filtered_value >> 8;  // 16-bit to 8-bit
             HAL_UART_Transmit_IT(&huart2, &mapped_value, 1);
         }
 
