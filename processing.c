@@ -557,7 +557,7 @@ void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef * htim)
 	}
 
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
-{
+{ // tim1 is used to read the ultrasonic sensor
 	if ((htim == &htim1) && (htim->Channel == 1) && (distance_mode == 1))
 	{
 		if (flag == 0)

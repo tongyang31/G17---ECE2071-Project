@@ -362,7 +362,8 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef* htim){
 	if (htim == &htim7)
-  { //If the callback was executed for ADC timer TIM7
+  { 
+    //If the callback was executed for ADC timer TIM7
 		HAL_ADC_Start(&hadc1); //start ADC
 		HAL_ADC_PollForConversion(&hadc1,10); //Wait for conversion
 		raw_ADC_value = HAL_ADC_GetValue(&hadc1); //get the unsigned 12-bit ADC data
